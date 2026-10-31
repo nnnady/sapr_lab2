@@ -30,6 +30,7 @@ end
 // задача записи: addr - куда пишем, data - что пишем
 // automatic - у каждого вызова задачи свои переменные
 task automatic apb_write(input logic [31:0] addr, input logic [31:0] data);
+  logic err;                                // была ли ошибка
   wait ((penable == 0) && (pready == 0));   // ждем, пока шина освободится
   @(posedge pclk);                          // ждем фронт тактового сигнала
   // 1 фаза (SETUP): выбираем слейв и выставляем адрес и данные
@@ -42,8 +43,9 @@ task automatic apb_write(input logic [31:0] addr, input logic [31:0] data);
   penable <= 1'b1;
   @(posedge pclk);
   wait (pready == 1'b1);                    // ждем, пока слейв ответит, что готов
+  err = pslverr;                            // ЛР2: запоминаем ошибку в том же такте, что и pready
   @(posedge pclk);
-  if (pslverr)                              // если слейв выставил ошибку - пишем сообщение
+  if (err)                                  // если слейв выставил ошибку - пишем сообщение
     $display("[%0t] MASTER: error on write, addr 0x%h", $time, addr);
   // запись закончена, снимаем сигналы
   psel <= 1'b0;
@@ -54,6 +56,7 @@ endtask
 
 // задача чтения: addr - откуда читаем, data - сюда вернется прочитанное
 task automatic apb_read(input logic [31:0] addr, output logic [31:0] data);
+  logic err;                                // была ли ошибка
   wait ((penable == 0) && (pready == 0));   // ждем, пока шина освободится
   @(posedge pclk);
   // 1 фаза: выбираем слейв, pwrite = 0 значит чтение, выставляем адрес
@@ -65,10 +68,14 @@ task automatic apb_read(input logic [31:0] addr, output logic [31:0] data);
   penable <= 1'b1;
   @(posedge pclk);
   wait (pready == 1'b1);                    // ждем ответ слейва
-  @(posedge pclk);
-  if (pslverr)
-    $display("[%0t] MASTER: error on read, addr 0x%h", $time, addr);
+  // ЛР2: данные и ошибку забираем в том же такте, что и pready.
+  // в ЛР1 это делалось на следующем фронте, когда слейв уже обнуляет prdata -
+  // ModelSim успевал прочитать старое значение, а другие симуляторы нет (гонка)
   data = prdata;                            // запоминаем прочитанные данные
+  err = pslverr;
+  @(posedge pclk);
+  if (err)
+    $display("[%0t] MASTER: error on read, addr 0x%h", $time, addr);
   // чтение закончено, снимаем сигналы
   psel <= 1'b0;
   penable <= 1'b0;
