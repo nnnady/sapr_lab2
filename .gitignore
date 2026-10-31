@@ -1,0 +1,11 @@
+# файлы ModelSim
+work/
+transcript
+*.wlf
+*.vstf
+# файлы Verilator и отчеты покрытия
+obj_dir/
+coverage.dat
+annotated/
+# exe
+*.exe
